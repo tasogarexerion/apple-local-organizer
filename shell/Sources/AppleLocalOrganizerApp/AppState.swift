@@ -6,6 +6,7 @@ import UserNotifications
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
+    private let backgroundMonitoringEnabled = false
 
     @AppStorage("defaultStyle") var defaultStyle = "bullets"
     @AppStorage("defaultLength") var defaultLength = "short"
@@ -69,6 +70,9 @@ final class AppState: ObservableObject {
     }
 
     var backgroundServiceStatusText: String {
+        guard backgroundMonitoringEnabled else {
+            return "Background monitoring is disabled in this preview. Use Quick Sort and right-click actions."
+        }
         let services = activeBackgroundServices()
         guard !services.isEmpty else {
             return "Background services are off. Use Quick Sort or enable a specific watcher in Preferences."
@@ -89,7 +93,11 @@ final class AppState: ObservableObject {
 
     func configureBackgroundServices() async {
         cancelBackgroundServices()
+        disableBackgroundMonitoringSettings()
         lastClipboardChangeCount = NSPasteboard.general.changeCount
+        guard backgroundMonitoringEnabled else {
+            return
+        }
         if backgroundNotificationsEnabled {
             await requestNotificationAuthorizationIfNeeded()
         }
@@ -646,6 +654,9 @@ final class AppState: ObservableObject {
     }
 
     private func monitorEnabled(for target: ScanTarget) -> Bool {
+        guard backgroundMonitoringEnabled else {
+            return false
+        }
         switch target {
         case .downloads:
             return watchDownloadsEnabled
@@ -744,18 +755,22 @@ final class AppState: ObservableObject {
     }
 
     private func applyStabilityProfileIfNeeded() {
-        guard backgroundStabilityProfileVersion < 1 else {
+        guard backgroundStabilityProfileVersion < 2 else {
             return
         }
+        disableBackgroundMonitoringSettings()
+        watcherIntervalSeconds = max(watcherIntervalSeconds, 60)
+        clipboardInsightMinimumLength = max(clipboardInsightMinimumLength, 480)
+        backgroundStabilityProfileVersion = 2
+        lastNotice = "安定運用のため監視は停止しました。Quick Sort と右クリック操作を使ってください。"
+    }
+
+    private func disableBackgroundMonitoringSettings() {
         watchDesktopEnabled = false
         watchDownloadsEnabled = false
         watchClipboardEnabled = false
         watchScreenshotsEnabled = false
         watchPDFInboxEnabled = false
-        watcherIntervalSeconds = max(watcherIntervalSeconds, 45)
-        clipboardInsightMinimumLength = max(clipboardInsightMinimumLength, 480)
-        backgroundStabilityProfileVersion = 1
-        lastNotice = "安定優先の常駐設定に切り替えました。Quick Sort と右クリック操作が主導線です。"
     }
 
     private func enqueueBackgroundTask(_ operation: @escaping @MainActor () async -> Void) {
@@ -807,6 +822,9 @@ final class AppState: ObservableObject {
     }
 
     private func activeBackgroundServices() -> [String] {
+        guard backgroundMonitoringEnabled else {
+            return []
+        }
         var labels: [String] = []
         if watchDesktopEnabled {
             labels.append("Desktop review (FSEvents)")
@@ -822,9 +840,6 @@ final class AppState: ObservableObject {
         }
         if watchClipboardEnabled {
             labels.append("Clipboard insight")
-        }
-        if autoApplySuggestedTagsOnMove {
-            labels.append("Auto tags on move")
         }
         return labels
     }

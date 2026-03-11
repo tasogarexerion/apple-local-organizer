@@ -377,23 +377,31 @@ struct PreferencesView: View {
             }
 
             Section("Background Services") {
-                Text("既定では安定優先のため、重い自動 review はオフです。まずは Quick Sort と右クリック操作を主導線にしています。")
+                Text("現在の preview では安定運用を優先し、常駐監視を停止しています。Quick Sort と右クリック操作を主導線にしています。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Toggle("Watch Desktop", isOn: $state.watchDesktopEnabled)
+                    .disabled(true)
                 Toggle("Watch Downloads", isOn: $state.watchDownloadsEnabled)
+                    .disabled(true)
                 Toggle("Summarize Screenshots", isOn: $state.watchScreenshotsEnabled)
+                    .disabled(true)
                 Toggle("Watch PDF Inbox", isOn: $state.watchPDFInboxEnabled)
+                    .disabled(true)
                 Toggle("Clipboard Insight", isOn: $state.watchClipboardEnabled)
+                    .disabled(true)
                 Toggle("Notifications", isOn: $state.backgroundNotificationsEnabled)
+                    .disabled(true)
                 Toggle("Auto Apply Suggested Tags On Move", isOn: $state.autoApplySuggestedTagsOnMove)
                 Stepper("Clipboard Polling Interval: \(state.watcherIntervalSeconds)s", value: $state.watcherIntervalSeconds, in: 10...300, step: 5)
+                    .disabled(true)
                 Stepper(
                     "Clipboard Min Length: \(state.clipboardInsightMinimumLength)",
                     value: $state.clipboardInsightMinimumLength,
                     in: 80...2000,
                     step: 40
                 )
+                .disabled(true)
                 Text(state.backgroundServiceStatusText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
