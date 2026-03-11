@@ -8,7 +8,10 @@ GitHub にはソースコードだけでも公開できます。Developer ID 署
 
 ## License
 
-このリポジトリのソースコードは [MIT License](/Users/taso/開発/オンデバイスAI/LICENSE) です。
+このリポジトリのソースコードは [Apple Local Organizer Community License 1.0](/Users/taso/開発/オンデバイスAI/LICENSE) です。
+個人利用、教育利用、研究利用、評価目的での利用は許可します。
+商用利用はこのライセンスには含めず、事前の問い合わせを必須とします。
+そのため、OSI 承認のオープンソースライセンスではなく、source-available の扱いです。
 ただし、Apple の SDK・フレームワーク・同梱しない外部 runtime にはそれぞれの利用条件が適用されます。
 
 ## 構成

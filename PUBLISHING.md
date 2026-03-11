@@ -75,6 +75,8 @@ release/staple_dmg.sh release/build/AppleLocalOrganizer.dmg
 
 ## 6. 注意
 
-- このリポジトリのソースコードは `MIT License` です。
+- このリポジトリのソースコードは `Apple Local Organizer Community License 1.0` です。
+- 個人利用、教育利用、研究利用、評価目的での利用は許可します。
+- 商用利用は別途許諾が必要です。利用前にリポジトリ所有者へ問い合わせる前提です。
 - `vendor/python-runtime/` と `release/build/` はコミット対象にしない前提です。
 - ad-hoc 配布は Gatekeeper の警告が出る前提です。一般ユーザー向け正式配布には向きません。
