@@ -75,6 +75,6 @@ release/staple_dmg.sh release/build/AppleLocalOrganizer.dmg
 
 ## 6. 注意
 
-- まだ `LICENSE` を置いていない場合、公開しても再利用条件は明示されません。
+- このリポジトリのソースコードは `MIT License` です。
 - `vendor/python-runtime/` と `release/build/` はコミット対象にしない前提です。
 - ad-hoc 配布は Gatekeeper の警告が出る前提です。一般ユーザー向け正式配布には向きません。

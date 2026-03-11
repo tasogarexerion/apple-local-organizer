@@ -6,6 +6,11 @@ GitHub にはソースコードだけでも公開できます。Developer ID 署
 
 公開時の実務手順は [PUBLISHING.md](/Users/taso/開発/オンデバイスAI/PUBLISHING.md) にまとめています。
 
+## License
+
+このリポジトリのソースコードは [MIT License](/Users/taso/開発/オンデバイスAI/LICENSE) です。
+ただし、Apple の SDK・フレームワーク・同梱しない外部 runtime にはそれぞれの利用条件が適用されます。
+
 ## 構成
 
 - `core/`: Python コア。要約、環境判定、取り込み、整理提案、履歴管理、JSON ブリッジを含みます。
