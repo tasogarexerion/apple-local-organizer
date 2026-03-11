@@ -25,7 +25,7 @@ final class AppState: ObservableObject {
     @Published var environmentStatus = EnvironmentStatus(
         shell_supported: true,
         ai_supported: false,
-        reason: "Checking environment...",
+        reason: "環境を確認しています...",
         os_version: ProcessInfo.processInfo.operatingSystemVersionString
     )
     @Published var latestSummary: SummaryResult?
@@ -71,15 +71,15 @@ final class AppState: ObservableObject {
 
     var backgroundServiceStatusText: String {
         guard backgroundMonitoringEnabled else {
-            return "Background monitoring is disabled in this preview. Use Quick Sort and right-click actions."
+            return "この preview では常駐監視を停止しています。右クリック操作とかんたん整理を使ってください。"
         }
         let services = activeBackgroundServices()
         guard !services.isEmpty else {
-            return "Background services are off. Use Quick Sort or enable a specific watcher in Preferences."
+            return "バックグラウンド機能はオフです。かんたん整理を使うか、設定で個別に有効化してください。"
         }
-        var detail = "Background: \(services.joined(separator: " / "))"
+        var detail = "バックグラウンド: \(services.joined(separator: " / "))"
         if watchClipboardEnabled {
-            detail += " • clipboard poll \(watcherIntervalSeconds)s"
+            detail += " • クリップボード確認 \(watcherIntervalSeconds)秒"
         }
         return detail
     }
@@ -306,11 +306,11 @@ final class AppState: ObservableObject {
                 )
                 self.latestSummary = result
             }
-            self.lastNotice = "\(files.count) 件のファイルを要約しました。Recent Results を確認してください。"
+            self.lastNotice = "\(files.count) 件のファイルを要約しました。最近の結果を確認してください。"
             await self.loadRecents()
                 self.presentAlert(
                 title: "DropSort",
-                message: "\(files.count) 件のファイルを要約しました。Recent Results から確認できます。"
+                message: "\(files.count) 件のファイルを要約しました。最近の結果から確認できます。"
             )
         }
     }
@@ -762,7 +762,7 @@ final class AppState: ObservableObject {
         watcherIntervalSeconds = max(watcherIntervalSeconds, 60)
         clipboardInsightMinimumLength = max(clipboardInsightMinimumLength, 480)
         backgroundStabilityProfileVersion = 2
-        lastNotice = "安定運用のため監視は停止しました。Quick Sort と右クリック操作を使ってください。"
+        lastNotice = "安定運用のため監視は停止しました。かんたん整理と右クリック操作を使ってください。"
     }
 
     private func disableBackgroundMonitoringSettings() {

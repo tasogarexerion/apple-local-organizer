@@ -99,3 +99,21 @@ class OrganizerTests(unittest.TestCase):
             self.assertEqual(result.moved_count, 1)
             self.assertTrue(existing.exists())
             self.assertTrue(moved.exists())
+
+    def test_apply_suggestions_avoids_file_folder_conflict(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "main.py"
+            source.write_text("print('hi')", encoding="utf-8")
+            blocking_file = root / "Code"
+            blocking_file.write_text("not a folder", encoding="utf-8")
+
+            result = apply_suggestions(
+                root,
+                [{"source_path": str(source), "target_folder_name": "Code"}],
+            )
+
+            moved = root / "Code 2" / "main.py"
+            self.assertEqual(result.moved_count, 1)
+            self.assertTrue(blocking_file.exists())
+            self.assertTrue(moved.exists())

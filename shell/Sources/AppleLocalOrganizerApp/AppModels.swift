@@ -111,9 +111,9 @@ enum ScanTarget: String, Sendable {
     var windowTitle: String {
         switch self {
         case .downloads:
-            return "Review Downloads"
+            return "ダウンロードの整理候補"
         case .desktop:
-            return "Review Desktop"
+            return "デスクトップの整理候補"
         }
     }
 }

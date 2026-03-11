@@ -123,20 +123,20 @@ def apply_suggestions(
             )
             continue
 
-        target_dir = source_root / folder_name
-        target_dir.mkdir(parents=True, exist_ok=True)
-        destination = _next_available_destination(target_dir / source.name)
-
         try:
+            target_dir = _next_available_directory(source_root / folder_name)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            destination = _next_available_destination(target_dir / source.name)
+            actual_folder_name = target_dir.name
             shutil.move(str(source), str(destination))
             moved_count += 1
             results.append(
                 OrganizerMoveItem(
                     source_path=str(source),
                     destination_path=str(destination),
-                    target_folder_name=folder_name,
+                    target_folder_name=actual_folder_name,
                     status="moved",
-                    message=f"{folder_name} へ移動しました。",
+                    message=f"{actual_folder_name} へ移動しました。",
                 )
             )
         except Exception as exc:
@@ -303,5 +303,21 @@ def _next_available_destination(path: Path) -> Path:
     while True:
         candidate = path.with_name(f"{stem} {counter}{suffix}")
         if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def _next_available_directory(path: Path) -> Path:
+    if not path.exists():
+        return path
+    if path.is_dir():
+        return path
+    base_name = path.name
+    counter = 2
+    while True:
+        candidate = path.with_name(f"{base_name} {counter}")
+        if not candidate.exists():
+            return candidate
+        if candidate.is_dir():
             return candidate
         counter += 1

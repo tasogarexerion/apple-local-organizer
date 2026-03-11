@@ -15,7 +15,7 @@ struct AppleLocalOrganizerApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        WindowGroup("Review Downloads", id: "review-downloads") {
+        WindowGroup("ダウンロードの整理候補", id: "review-downloads") {
             ReviewView(target: .downloads)
                 .environmentObject(state)
                 .task {
@@ -25,7 +25,7 @@ struct AppleLocalOrganizerApp: App {
                 }
         }
 
-        WindowGroup("Review Desktop", id: "review-desktop") {
+        WindowGroup("デスクトップの整理候補", id: "review-desktop") {
             ReviewView(target: .desktop)
                 .environmentObject(state)
                 .task {
@@ -35,7 +35,7 @@ struct AppleLocalOrganizerApp: App {
                 }
         }
 
-        WindowGroup("Recent Results", id: "recent-results") {
+        WindowGroup("最近の結果", id: "recent-results") {
             RecentResultsView()
                 .environmentObject(state)
                 .task {
@@ -43,7 +43,7 @@ struct AppleLocalOrganizerApp: App {
                 }
         }
 
-        WindowGroup("System Status", id: "system-status") {
+        WindowGroup("システム状況", id: "system-status") {
             StatusView()
                 .environmentObject(state)
                 .task {
