@@ -43,6 +43,8 @@ final class AppState: ObservableObject {
     private var clipboardWatcherTask: Task<Void, Never>?
     private var pendingDesktopPaths = Set<String>()
     private var pendingDownloadsPaths = Set<String>()
+    private var backgroundReviewInFlight = Set<ScanTarget>()
+    private var backgroundReviewPending = Set<ScanTarget>()
     private var didRequestNotificationAuthorization = false
     private var ignoredClipboardFingerprint: String?
     private var lastClipboardFingerprint: String?
@@ -505,7 +507,7 @@ final class AppState: ObservableObject {
                 continue
             }
             guard environmentStatus.ai_supported,
-                  text.count >= clipboardInsightMinimumLength,
+                  shouldAnalyzeClipboard(text),
                   currentFingerprint != lastClipboardFingerprint else {
                 lastClipboardFingerprint = currentFingerprint
                 continue
@@ -548,6 +550,23 @@ final class AppState: ObservableObject {
         changedFilesCount: Int,
         sendUserNotification: Bool
     ) async {
+        if backgroundReviewInFlight.contains(target) {
+            backgroundReviewPending.insert(target)
+            return
+        }
+        backgroundReviewInFlight.insert(target)
+        defer {
+            backgroundReviewInFlight.remove(target)
+            if backgroundReviewPending.remove(target) != nil {
+                Task { @MainActor [weak self] in
+                    await self?.performBackgroundReview(
+                        for: target,
+                        changedFilesCount: 0,
+                        sendUserNotification: false
+                    )
+                }
+            }
+        }
         do {
             let result = try await bridge.scanFolder(path: target.defaultPath)
             switch target {
@@ -708,6 +727,43 @@ final class AppState: ObservableObject {
     private func fingerprint(for text: String) -> String {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(cleaned.count)|\(cleaned.prefix(160))"
+    }
+
+    private func shouldAnalyzeClipboard(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count >= clipboardInsightMinimumLength else {
+            return false
+        }
+        return !looksLikeShellCommand(cleaned)
+    }
+
+    private func looksLikeShellCommand(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = trimmed.lowercased()
+        let commandPrefixes = [
+            "$ ", "% ", "cd ", "ls", "pwd", "git ", "gh ", "swift ", "python ", "python3 ",
+            "open ", "brew ", "chmod ", "chown ", "cp ", "mv ", "rm ", "mkdir ", "touch ",
+            "export ", "defaults ", "kill ", "pkill ", "./", "/users/", "~/"
+        ]
+        if commandPrefixes.contains(where: { lowered.hasPrefix($0) }) {
+            return true
+        }
+        let lines = trimmed.split(separator: "\n", omittingEmptySubsequences: false)
+        if lines.count <= 4 {
+            let shellLikeLines = lines.filter { line in
+                let candidate = line.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard !candidate.isEmpty else {
+                    return false
+                }
+                return commandPrefixes.contains(where: { candidate.hasPrefix($0) })
+                    || candidate.contains(" % ")
+                    || candidate.contains(" command not found")
+            }
+            if !shellLikeLines.isEmpty {
+                return true
+            }
+        }
+        return false
     }
 
     private func activeBackgroundServices() -> [String] {
