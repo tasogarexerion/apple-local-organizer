@@ -40,6 +40,8 @@ class OrganizerSuggestion:
     evidence_summary: str
     confidence: float
     suggested_tags: list[str] = field(default_factory=list)
+    suggested_tag_color: str | None = None
+    priority: int = 2
 
 
 @dataclass(slots=True)

@@ -36,9 +36,13 @@ final class AppState: ObservableObject {
     @Published var backgroundEvents: [BackgroundEvent] = []
 
     private let bridge = PythonBridge()
-    private var desktopWatcherTask: Task<Void, Never>?
-    private var downloadsWatcherTask: Task<Void, Never>?
+    private var desktopEventStream: DirectoryEventStream?
+    private var downloadsEventStream: DirectoryEventStream?
+    private var desktopDebounceTask: Task<Void, Never>?
+    private var downloadsDebounceTask: Task<Void, Never>?
     private var clipboardWatcherTask: Task<Void, Never>?
+    private var pendingDesktopPaths = Set<String>()
+    private var pendingDownloadsPaths = Set<String>()
     private var didRequestNotificationAuthorization = false
     private var ignoredClipboardFingerprint: String?
     private var lastClipboardFingerprint: String?
@@ -65,7 +69,11 @@ final class AppState: ObservableObject {
         guard !services.isEmpty else {
             return "Background services are off."
         }
-        return "Background: \(services.joined(separator: " / ")) • every \(watcherIntervalSeconds)s"
+        var detail = "Background: \(services.joined(separator: " / "))"
+        if watchClipboardEnabled {
+            detail += " • clipboard poll \(watcherIntervalSeconds)s"
+        }
+        return detail
     }
 
     func bootstrap() async {
@@ -81,14 +89,10 @@ final class AppState: ObservableObject {
             await requestNotificationAuthorizationIfNeeded()
         }
         if watchDesktopEnabled || watchScreenshotsEnabled {
-            desktopWatcherTask = Task { [weak self] in
-                await self?.runFolderWatcher(for: .desktop)
-            }
+            startDirectoryWatcher(for: .desktop)
         }
         if watchDownloadsEnabled || watchPDFInboxEnabled {
-            downloadsWatcherTask = Task { [weak self] in
-                await self?.runFolderWatcher(for: .downloads)
-            }
+            startDirectoryWatcher(for: .downloads)
         }
         if watchClipboardEnabled {
             clipboardWatcherTask = Task { [weak self] in
@@ -194,10 +198,15 @@ final class AppState: ObservableObject {
     func applySuggestedTags(_ suggestion: OrganizerSuggestion, pathOverride: String? = nil) async {
         let targetPath = pathOverride ?? suggestion.source_path
         do {
-            let appliedCount = try applyFinderTags(suggestion.suggested_tags, to: targetPath)
+            let appliedCount = try applyFinderTags(
+                suggestion.suggested_tags,
+                colorName: suggestion.suggested_tag_color,
+                to: targetPath
+            )
             if appliedCount > 0 {
                 let fileName = URL(fileURLWithPath: targetPath).lastPathComponent
-                let detail = "\(fileName) に \(suggestion.suggested_tags.joined(separator: ", ")) を付与しました。"
+                let colorSuffix = suggestion.suggested_tag_color.map { " / color: \($0)" } ?? ""
+                let detail = "\(fileName) に \(suggestion.suggested_tags.joined(separator: ", "))\(colorSuffix) を付与しました。"
                 lastNotice = detail
                 appendBackgroundEvent(title: "Finder タグを適用", detail: detail)
             }
@@ -319,33 +328,90 @@ final class AppState: ObservableObject {
     }
 
     private func cancelBackgroundServices() {
-        desktopWatcherTask?.cancel()
-        downloadsWatcherTask?.cancel()
+        desktopEventStream?.stop()
+        downloadsEventStream?.stop()
+        desktopEventStream = nil
+        downloadsEventStream = nil
+        desktopDebounceTask?.cancel()
+        downloadsDebounceTask?.cancel()
         clipboardWatcherTask?.cancel()
-        desktopWatcherTask = nil
-        downloadsWatcherTask = nil
+        desktopDebounceTask = nil
+        downloadsDebounceTask = nil
         clipboardWatcherTask = nil
+        pendingDesktopPaths.removeAll()
+        pendingDownloadsPaths.removeAll()
     }
 
-    private func runFolderWatcher(for target: ScanTarget) async {
-        var knownSnapshot = captureFileSnapshot(at: target.defaultPath)
-        if monitorEnabled(for: target) {
-            await performBackgroundReview(for: target, changedFilesCount: 0, sendUserNotification: false)
+    private func startDirectoryWatcher(for target: ScanTarget) {
+        do {
+            let stream = DirectoryEventStream(path: target.defaultPath) { [weak self] paths in
+                guard let self else {
+                    return
+                }
+                Task { @MainActor [weak self] in
+                    self?.enqueueDirectoryEvents(paths, for: target)
+                }
+            }
+            try stream.start()
+            switch target {
+            case .desktop:
+                desktopEventStream = stream
+            case .downloads:
+                downloadsEventStream = stream
+            }
+            Task { @MainActor [weak self] in
+                if self?.monitorEnabled(for: target) == true {
+                    await self?.performBackgroundReview(for: target, changedFilesCount: 0, sendUserNotification: false)
+                }
+            }
+        } catch {
+            lastError = error.localizedDescription
         }
+    }
 
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(max(10, watcherIntervalSeconds)))
-            let currentSnapshot = captureFileSnapshot(at: target.defaultPath)
-            let changedPaths = currentSnapshot.compactMap { path, modifiedAt -> String? in
-                guard let previous = knownSnapshot[path] else { return path }
-                return previous == modifiedAt ? nil : path
+    private func enqueueDirectoryEvents(_ paths: [String], for target: ScanTarget) {
+        let filtered = paths.filter { path in
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
+                return false
             }
-            knownSnapshot = currentSnapshot
-            if changedPaths.isEmpty {
-                continue
-            }
-            await handleFolderChanges(changedPaths.sorted(), for: target)
+            return !isDirectory.boolValue
         }
+        guard !filtered.isEmpty else {
+            return
+        }
+        switch target {
+        case .desktop:
+            pendingDesktopPaths.formUnion(filtered)
+            desktopDebounceTask?.cancel()
+            desktopDebounceTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                await self?.flushDirectoryEvents(for: .desktop)
+            }
+        case .downloads:
+            pendingDownloadsPaths.formUnion(filtered)
+            downloadsDebounceTask?.cancel()
+            downloadsDebounceTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                await self?.flushDirectoryEvents(for: .downloads)
+            }
+        }
+    }
+
+    private func flushDirectoryEvents(for target: ScanTarget) async {
+        let changedPaths: [String]
+        switch target {
+        case .desktop:
+            changedPaths = pendingDesktopPaths.sorted()
+            pendingDesktopPaths.removeAll()
+        case .downloads:
+            changedPaths = pendingDownloadsPaths.sorted()
+            pendingDownloadsPaths.removeAll()
+        }
+        guard !changedPaths.isEmpty else {
+            return
+        }
+        await handleFolderChanges(changedPaths, for: target)
     }
 
     private func runClipboardWatcher() async {
@@ -486,26 +552,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func captureFileSnapshot(at rootPath: String) -> [String: TimeInterval] {
-        let root = URL(fileURLWithPath: rootPath, isDirectory: true)
-        guard let items = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return [:]
-        }
-        var snapshot: [String: TimeInterval] = [:]
-        for item in items {
-            let values = try? item.resourceValues(forKeys: [.contentModificationDateKey, .isDirectoryKey])
-            if values?.isDirectory == true {
-                continue
-            }
-            snapshot[item.path] = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
-        }
-        return snapshot
-    }
-
     private func isScreenshotFile(_ path: String) -> Bool {
         let lowercased = URL(fileURLWithPath: path).lastPathComponent.lowercased()
         return lowercased.contains("screenshot") || lowercased.contains("スクリーンショット")
@@ -522,7 +568,11 @@ final class AppState: ObservableObject {
                 continue
             }
             do {
-                let appliedCount = try applyFinderTags(suggestion.suggested_tags, to: destinationPath)
+                let appliedCount = try applyFinderTags(
+                    suggestion.suggested_tags,
+                    colorName: suggestion.suggested_tag_color,
+                    to: destinationPath
+                )
                 if appliedCount > 0 {
                     taggedCount += 1
                 }
@@ -533,12 +583,13 @@ final class AppState: ObservableObject {
         return taggedCount
     }
 
-    private func applyFinderTags(_ tags: [String], to path: String) throws -> Int {
+    private func applyFinderTags(_ tags: [String], colorName: String?, to path: String) throws -> Int {
         guard #available(macOS 26.0, *) else {
             return 0
         }
         let cleanedTags = tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        guard !cleanedTags.isEmpty else {
+        let desiredLabelNumber = finderLabelNumber(for: colorName)
+        guard !cleanedTags.isEmpty || desiredLabelNumber != nil else {
             return 0
         }
         var url = URL(fileURLWithPath: path)
@@ -549,15 +600,22 @@ final class AppState: ObservableObject {
                 userInfo: [NSLocalizedDescriptionKey: "タグ適用先のファイルが見つかりません: \(path)"]
             )
         }
-        let existingTags = try url.resourceValues(forKeys: [.tagNamesKey]).tagNames ?? []
+        let resourceValues = try url.resourceValues(forKeys: [.tagNamesKey, .labelNumberKey])
+        let existingTags = resourceValues.tagNames ?? []
         let mergedTags = mergedTags(existingTags + cleanedTags)
-        guard mergedTags != existingTags else {
+        let existingLabelNumber = resourceValues.labelNumber
+        if mergedTags == existingTags, desiredLabelNumber == nil || desiredLabelNumber == existingLabelNumber {
             return 0
         }
         var values = URLResourceValues()
-        values.tagNames = mergedTags
+        if !cleanedTags.isEmpty {
+            values.tagNames = mergedTags
+        }
+        if let desiredLabelNumber {
+            values.labelNumber = desiredLabelNumber
+        }
         try url.setResourceValues(values)
-        return mergedTags.count - existingTags.count
+        return max(mergedTags.count - existingTags.count, desiredLabelNumber == nil || desiredLabelNumber == existingLabelNumber ? 0 : 1)
     }
 
     private func mergedTags(_ tags: [String]) -> [String] {
@@ -586,10 +644,10 @@ final class AppState: ObservableObject {
     private func activeBackgroundServices() -> [String] {
         var labels: [String] = []
         if watchDesktopEnabled {
-            labels.append("Desktop review")
+            labels.append("Desktop review (FSEvents)")
         }
         if watchDownloadsEnabled {
-            labels.append("Downloads review")
+            labels.append("Downloads review (FSEvents)")
         }
         if watchScreenshotsEnabled {
             labels.append("Screenshot summary")
@@ -604,6 +662,27 @@ final class AppState: ObservableObject {
             labels.append("Auto tags on move")
         }
         return labels
+    }
+
+    private func finderLabelNumber(for colorName: String?) -> Int? {
+        switch colorName?.lowercased() {
+        case "gray":
+            return 1
+        case "green":
+            return 2
+        case "purple":
+            return 3
+        case "blue":
+            return 4
+        case "yellow":
+            return 5
+        case "red":
+            return 6
+        case "orange":
+            return 7
+        default:
+            return nil
+        }
     }
 
     private func requestNotificationAuthorizationIfNeeded() async {

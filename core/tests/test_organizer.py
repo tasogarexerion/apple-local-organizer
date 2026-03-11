@@ -8,6 +8,8 @@ from ailocaltools.organizer import (
     build_reason,
     scan_folder,
     suggest_folder_name,
+    suggest_priority,
+    suggest_tag_color,
     suggest_tags,
 )
 
@@ -34,6 +36,20 @@ class OrganizerTests(unittest.TestCase):
         self.assertIn("スクリーンショット", tags)
         self.assertIn("領収書", tags)
 
+    def test_suggest_tag_style(self) -> None:
+        color = suggest_tag_color(
+            Path("/tmp/invoice.pdf"),
+            "Receipts",
+            "本文抜粋: Invoice from vendor",
+        )
+        priority = suggest_priority(
+            Path("/tmp/invoice.pdf"),
+            "Receipts",
+            "本文抜粋: Invoice from vendor",
+        )
+        self.assertEqual(color, "red")
+        self.assertEqual(priority, 1)
+
     def test_scan_folder_non_mutating(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -45,6 +61,8 @@ class OrganizerTests(unittest.TestCase):
             self.assertEqual(before, after)
             self.assertEqual(run.suggestions[0].target_folder_name, "Screenshots")
             self.assertIn("スクリーンショット", run.suggestions[0].suggested_tags)
+            self.assertEqual(run.suggestions[0].suggested_tag_color, "yellow")
+            self.assertEqual(run.suggestions[0].priority, 2)
 
     def test_apply_suggestions_moves_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

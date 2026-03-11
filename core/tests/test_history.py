@@ -44,6 +44,8 @@ class HistoryTests(unittest.TestCase):
                                 evidence_summary="evidence",
                                 confidence=0.8,
                                 suggested_tags=["書類", "要確認"],
+                                suggested_tag_color="blue",
+                                priority=3,
                             )
                         ],
                     )
@@ -52,3 +54,5 @@ class HistoryTests(unittest.TestCase):
             self.assertEqual(len(recent.organizer_runs), 10)
             self.assertEqual(recent.organizer_runs[0].source_root, "/tmp/run-11")
             self.assertEqual(recent.organizer_runs[0].suggestions[0].suggested_tags, ["書類", "要確認"])
+            self.assertEqual(recent.organizer_runs[0].suggestions[0].suggested_tag_color, "blue")
+            self.assertEqual(recent.organizer_runs[0].suggestions[0].priority, 3)

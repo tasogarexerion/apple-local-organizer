@@ -71,7 +71,9 @@ class HistoryStore:
                     reason_ja TEXT NOT NULL,
                     evidence_summary TEXT NOT NULL,
                     confidence REAL NOT NULL,
-                    suggested_tags TEXT NOT NULL DEFAULT '[]'
+                    suggested_tags TEXT NOT NULL DEFAULT '[]',
+                    suggested_tag_color TEXT,
+                    priority INTEGER NOT NULL DEFAULT 2
                 );
                 """
             )
@@ -82,6 +84,14 @@ class HistoryStore:
             if "suggested_tags" not in columns:
                 conn.execute(
                     "ALTER TABLE organizer_suggestions ADD COLUMN suggested_tags TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "suggested_tag_color" not in columns:
+                conn.execute(
+                    "ALTER TABLE organizer_suggestions ADD COLUMN suggested_tag_color TEXT"
+                )
+            if "priority" not in columns:
+                conn.execute(
+                    "ALTER TABLE organizer_suggestions ADD COLUMN priority INTEGER NOT NULL DEFAULT 2"
                 )
 
     def save_summary(self, result: SummaryResult, keep: int = 20) -> None:
@@ -116,9 +126,9 @@ class HistoryStore:
                 """
                 INSERT INTO organizer_suggestions(
                     run_id, source_path, target_folder_name, is_new_folder, reason_ja,
-                    evidence_summary, confidence, suggested_tags
+                    evidence_summary, confidence, suggested_tags, suggested_tag_color, priority
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -130,6 +140,8 @@ class HistoryStore:
                         item.evidence_summary,
                         item.confidence,
                         json.dumps(item.suggested_tags, ensure_ascii=False),
+                        item.suggested_tag_color,
+                        item.priority,
                     )
                     for item in run.suggestions
                 ],
@@ -216,14 +228,16 @@ class HistoryStore:
                         evidence_summary=item["evidence_summary"],
                         confidence=item["confidence"],
                         suggested_tags=json.loads(item["suggested_tags"] or "[]"),
+                        suggested_tag_color=item["suggested_tag_color"],
+                        priority=item["priority"],
                     )
                     for item in conn.execute(
                         """
                         SELECT source_path, target_folder_name, is_new_folder, reason_ja,
-                               evidence_summary, confidence, suggested_tags
+                               evidence_summary, confidence, suggested_tags, suggested_tag_color, priority
                         FROM organizer_suggestions
                         WHERE run_id = ?
-                        ORDER BY confidence DESC, source_path ASC
+                        ORDER BY priority ASC, confidence DESC, source_path ASC
                         """,
                         (row["id"],),
                     )

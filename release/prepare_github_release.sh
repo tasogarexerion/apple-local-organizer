@@ -118,8 +118,10 @@ Apple Intelligence を使った、ローカル要約と Finder 整理提案の m
 - 完全オンデバイス前提の Foundation Models / Vision ワークフロー
 - Finder の右クリックから `このアプリで開く` による要約
 - 対応アプリの選択テキストを右クリック `サービス` から要約
-- Desktop / Downloads の常駐監視、スクリーンショット要約、PDF 受信箱ウォッチ
+- Desktop / Downloads の FSEvents 常駐監視、スクリーンショット要約、PDF 受信箱ウォッチ
 - クリップボードの常駐インサイトと Finder タグ提案
+- Finder タグの priority / color 提案
+- MLX ベースのローカル自作 AI playground
 
 ## 動作前提
 

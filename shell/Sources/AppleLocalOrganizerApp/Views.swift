@@ -156,6 +156,9 @@ struct SuggestionRow: View {
                 Text(URL(fileURLWithPath: suggestion.source_path).lastPathComponent)
                     .font(.headline)
                 Spacer()
+                Text(priorityText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(priorityColor)
                 Text("\(Int(suggestion.confidence * 100))%")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -169,8 +172,15 @@ struct SuggestionRow: View {
                 .foregroundStyle(.secondary)
 
             if !suggestion.suggested_tags.isEmpty {
-                Text("タグ候補: \(suggestion.suggested_tags.joined(separator: ", "))")
-                    .font(.footnote)
+                HStack(spacing: 8) {
+                    Text("タグ候補: \(suggestion.suggested_tags.joined(separator: ", "))")
+                        .font(.footnote)
+                    if let colorName = suggestion.suggested_tag_color {
+                        Label(colorName.capitalized, systemImage: "circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(finderColor(for: colorName))
+                    }
+                }
             }
 
             HStack {
@@ -199,6 +209,49 @@ struct SuggestionRow: View {
             .buttonStyle(.bordered)
         }
         .padding(.vertical, 6)
+    }
+
+    private var priorityText: String {
+        switch suggestion.priority {
+        case 1:
+            return "High"
+        case 2:
+            return "Medium"
+        default:
+            return "Low"
+        }
+    }
+
+    private var priorityColor: Color {
+        switch suggestion.priority {
+        case 1:
+            return .red
+        case 2:
+            return .orange
+        default:
+            return .secondary
+        }
+    }
+
+    private func finderColor(for colorName: String) -> Color {
+        switch colorName.lowercased() {
+        case "gray":
+            return .gray
+        case "green":
+            return .green
+        case "purple":
+            return .purple
+        case "blue":
+            return .blue
+        case "yellow":
+            return .yellow
+        case "red":
+            return .red
+        case "orange":
+            return .orange
+        default:
+            return .secondary
+        }
     }
 }
 
@@ -314,7 +367,7 @@ struct PreferencesView: View {
                 Toggle("Clipboard Insight", isOn: $state.watchClipboardEnabled)
                 Toggle("Notifications", isOn: $state.backgroundNotificationsEnabled)
                 Toggle("Auto Apply Suggested Tags On Move", isOn: $state.autoApplySuggestedTagsOnMove)
-                Stepper("Polling Interval: \(state.watcherIntervalSeconds)s", value: $state.watcherIntervalSeconds, in: 10...300, step: 5)
+                Stepper("Clipboard Polling Interval: \(state.watcherIntervalSeconds)s", value: $state.watcherIntervalSeconds, in: 10...300, step: 5)
                 Stepper(
                     "Clipboard Min Length: \(state.clipboardInsightMinimumLength)",
                     value: $state.clipboardInsightMinimumLength,

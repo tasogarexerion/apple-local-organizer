@@ -46,6 +46,8 @@ struct OrganizerSuggestion: Codable, Identifiable, Sendable {
     let evidence_summary: String
     let confidence: Double
     let suggested_tags: [String]
+    let suggested_tag_color: String?
+    let priority: Int
 
     var id: String { source_path }
 }

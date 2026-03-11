@@ -34,6 +34,9 @@ def scan_folder(
         folder = suggest_folder_name(item, evidence.evidence_summary)
         is_new = not (source_root / folder).exists()
         reason, confidence = build_reason(item, folder, evidence.evidence_summary)
+        suggested_tags = suggest_tags(item, folder, evidence.evidence_summary)
+        suggested_tag_color = suggest_tag_color(item, folder, evidence.evidence_summary)
+        priority = suggest_priority(item, folder, evidence.evidence_summary)
         if ai_client and evidence.evidence_summary:
             try:
                 reason, confidence = asyncio.run(
@@ -53,14 +56,16 @@ def scan_folder(
                 reason_ja=reason,
                 evidence_summary=evidence.evidence_summary,
                 confidence=round(confidence, 2),
-                suggested_tags=suggest_tags(item, folder, evidence.evidence_summary),
+                suggested_tags=suggested_tags,
+                suggested_tag_color=suggested_tag_color,
+                priority=priority,
             )
         )
 
     run = OrganizerRun(
         source_root=str(source_root),
         started_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        suggestions=sorted(suggestions, key=lambda item: (-item.confidence, item.source_path)),
+        suggestions=sorted(suggestions, key=lambda item: (item.priority, -item.confidence, item.source_path)),
     )
     if history_store:
         history_store.save_organizer_run(run)
@@ -247,6 +252,41 @@ def suggest_tags(path: Path, folder: str, evidence_summary: str) -> list[str]:
         if cleaned and cleaned not in deduped:
             deduped.append(cleaned)
     return deduped[:3]
+
+
+def suggest_tag_color(path: Path, folder: str, evidence_summary: str) -> str | None:
+    lowered_name = path.name.lower()
+    lowered_evidence = evidence_summary.lower()
+
+    if folder == "Receipts" or any(token in lowered_evidence for token in ["invoice", "receipt", "領収", "請求"]):
+        return "red"
+    if folder == "Installers":
+        return "orange"
+    if folder == "Screenshots" or "screenshot" in lowered_name or "スクリーンショット" in path.name:
+        return "yellow"
+    if folder in {"Documents", "Meeting Notes"}:
+        return "blue"
+    if folder in {"Images", "Design Assets"}:
+        return "purple"
+    if folder in {"Code", "Data"}:
+        return "green"
+    if folder == "Media":
+        return "gray"
+    return None
+
+
+def suggest_priority(path: Path, folder: str, evidence_summary: str) -> int:
+    lowered_name = path.name.lower()
+    lowered_evidence = evidence_summary.lower()
+    if folder == "Receipts" or any(token in lowered_evidence for token in ["invoice", "receipt", "領収", "請求"]):
+        return 1
+    if folder == "Installers":
+        return 1
+    if folder == "Screenshots" or "screenshot" in lowered_name or "スクリーンショット" in path.name:
+        return 2
+    if path.suffix.lower() == ".pdf":
+        return 2
+    return 3
 
 
 def _sanitize_folder_name(value: str) -> str:
