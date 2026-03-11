@@ -119,6 +119,13 @@ final class AppState: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
+    func recordServiceSummary(_ result: SummaryResult) async {
+        latestSummary = result
+        lastNotice = "選択テキストを要約し、クリップボードにコピーしました。"
+        copy(result.summary_text)
+        await loadRecents()
+    }
+
     func handleOpenedFiles(_ paths: [String]) async {
         let fileManager = FileManager.default
         let files = paths.filter { path in

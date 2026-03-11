@@ -91,6 +91,28 @@ function write_info_plist() {
       </array>
     </dict>
   </array>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSMenuItem</key>
+      <dict>
+        <key>default</key>
+        <string>選択テキストを要約</string>
+      </dict>
+      <key>NSMessage</key>
+      <string>summarizeSelectedText:userData:error:</string>
+      <key>NSPortName</key>
+      <string>Apple Local Organizer</string>
+      <key>NSSendTypes</key>
+      <array>
+        <string>public.utf8-plain-text</string>
+      </array>
+      <key>NSReturnTypes</key>
+      <array>
+        <string>public.utf8-plain-text</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundleName</key>
   <string>Apple Local Organizer</string>
   <key>CFBundlePackageType</key>

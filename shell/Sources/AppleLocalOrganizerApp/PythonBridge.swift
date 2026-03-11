@@ -24,6 +24,23 @@ actor PythonBridge {
         return try await send(RequestEnvelope(type: "SummarizeFile", payload: payload), as: SummaryResult.self)
     }
 
+    func summarizeText(text: String, style: String, length: String, instruction: String?) async throws -> SummaryResult {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("apple-local-organizer-service", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        let tempFile = tempDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("txt")
+        try text.write(to: tempFile, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: tempFile)
+        }
+        return try await summarizeFile(
+            path: tempFile.path,
+            style: style,
+            length: length,
+            instruction: instruction
+        )
+    }
+
     func scanFolder(path: String) async throws -> OrganizerRun {
         try await send(RequestEnvelope(type: "ScanFolder", payload: ["path": path]), as: OrganizerRun.self)
     }
